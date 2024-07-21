@@ -4,7 +4,42 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
+
+  release:
+    needs: [lint, test]
     runs-on: ubuntu-latest
     env:
       REGISTRY_ID: ${{ secrets.CONTAINER_REGISTRY_ID }}
@@ -12,12 +47,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Run lint
-        run: npm run lint
-      - name: Run tests
-        run: npm run test
+
       - name: Create release branch
         run: git checkout -b releases/${{ env.VERSION }} && git push origin releases/${{ env.VERSION }}
+
       - name: Build Docker image
         run: |
           docker build -t cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }} .
@@ -26,8 +59,15 @@ jobs:
         run: |
           docker push cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }}
           docker push cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }}_latest
+
+      - name: Push docker image
+        run: |
+          docker push cr.yandex/${{ secrets.YANDEX_REGISTRY_ID }}/app:${{ github.run_number }}
+          docker push cr.yandex/${{ secrets.YANDEX_REGISTRY_ID }}/app:${{ github.run_number }}_latest
+
       - name: Create release tag
         run: git tag -a v${{ env.VERSION }} -m "Release ${{ env.VERSION }}" && git push origin v${{ env.VERSION }}
+
       - name: Create GitHub issue
         uses: actions-ecosystem/action-create-issue@v1
         with:
@@ -41,9 +81,3 @@ jobs:
             **Docker Image:**
             cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }}
 
-      - name: Update CHANGELOG.md
-        run: |
-          echo "## ${{ env.VERSION }} - ${{ github.event.created_at }}" >> CHANGELOG.md
-          git add CHANGELOG.md
-          git commit -m "Update CHANGELOG for release ${{ env.VERSION }}"
-          git push origin main
