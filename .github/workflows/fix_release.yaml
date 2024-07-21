@@ -55,10 +55,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
+        with:
+          fetch-depth: 0
       - name: Checkout release branch
         run: |
-          git checkout -b releases/${{ github.event.inputs.release_version }} origin/releases/${{ github.event.inputs.release_version }}	
+          git checkout -b releases/${{ env.RELEASE_VERSION }} origin/releases/${{ env.RELEASE_VERSION }}	
 
       - name: Build Docker image
         run: |
