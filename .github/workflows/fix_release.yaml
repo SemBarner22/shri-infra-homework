@@ -85,7 +85,7 @@ jobs:
         run: git tag -a v${{ env.RELEASE_VERSION }}_fix${{ env.FIX_VERSION }} -m "Fix ${{ env.FIX_VERSION }} for release ${{ env.RELEASE_VERSION }}" && git push origin v${{ env.RELEASE_VERSION }}_fix${{ env.FIX_VERSION }}
 
       - name: Update GitHub issue
-        uses: actions-ecosystem/action-create-issue@v1
+        uses: peter-evans/create-or-update-comment@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           issue_number: ${{ github.event.inputs.issue_number }}
