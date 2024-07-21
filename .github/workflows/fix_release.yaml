@@ -52,6 +52,7 @@ jobs:
       RELEASE_VERSION: ${{ github.event.inputs.release_version }}
       FIX_VERSION: ${{ github.run_number }}
       REGISTRY_ID: ${{ secrets.CONTAINER_REGISTRY_ID }}
+      TOKEN: ${{ secrets.YC_OAUTH }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
