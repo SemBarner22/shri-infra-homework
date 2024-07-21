@@ -2,15 +2,22 @@ name: PR Checks
 
 on:
   pull_request:
-    branches:
-      - main
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+
+      - name: set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '14'
+
+      - name: install dependencies
+        run: npm ci
+
       - name: Run lint
         run: npm run lint
 
@@ -19,14 +26,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '14'
+
+      - name: install dependencies
+        run: npm ci
+
       - name: Run tests
         run: npm run test
-
-  merge:
-    needs: [lint, test]
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
-    steps:
-      - name: Fail if lint or tests failed
-        run: exit 1
-        if: failure()
