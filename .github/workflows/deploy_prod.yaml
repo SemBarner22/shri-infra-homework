@@ -1,0 +1,58 @@
+name: Deploy to Prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version to deploy'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+      REGISTRY_ID: ${{ secrets.CONTAINER_REGISTRY_ID }}
+      TOKEN: ${{ secrets.YC_OAUTH }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate in Docker
+        run: |
+          docker login --username oauth --password ${{ env.TOKEN }} cr.yandex
+
+      - name: Verify Docker image exists
+        run: |
+          if ! docker manifest inspect cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_latest > /dev/null; then
+            echo "Docker image cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_latest does not exist"
+            exit 1
+          fi
+
+      - name: Deploy Docker image on VM
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          script: |
+            docker pull cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_latest
+            docker stop app || true
+            docker rm app || true
+            docker run -d --name app cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_latest
+
+      - name: Update GitHub issue
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_number: ${{ github.event.inputs.issue_number }}
+          body: |
+            **Deployment Date:** ${{ github.event.created_at }}
+            **Deployed By:** ${{ github.actor }}
+            **Docker Image:**
+            cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_latest
