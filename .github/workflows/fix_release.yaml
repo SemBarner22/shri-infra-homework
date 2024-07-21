@@ -1,0 +1,96 @@
+name: Release Fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version to fix'
+        required: true
+      issue_number:
+        description: 'issue number id'
+        required: true
+        type: number
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
+
+  fix:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+      FIX_VERSION: ${{ github.run_number }}
+      REGISTRY_ID: ${{ secrets.CONTAINER_REGISTRY_ID }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Checkout release branch
+        run: |
+          git checkout release/${{ github.event.inputs.release_version }}	
+
+      - name: Build Docker image
+        run: |
+          docker build -t cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_fix${{ env.FIX_VERSION }} .
+          docker tag cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_fix${{ env.FIX_VERSION }} cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_latest
+
+      - name: Authenticate in Docker
+        run: |
+          docker login --username oauth --password ${{ env.TOKEN }} cr.yandex
+
+      - name: Push Docker image
+        run: |
+          docker push cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_fix${{ env.FIX_VERSION }}
+          docker push cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_latest
+
+      - name: Configure Git user
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create fix tag
+        run: git tag -a v${{ env.RELEASE_VERSION }}_fix${{ env.FIX_VERSION }} -m "Fix ${{ env.FIX_VERSION }} for release ${{ env.RELEASE_VERSION }}" && git push origin v${{ env.RELEASE_VERSION }}_fix${{ env.FIX_VERSION }}
+
+      - name: Update GitHub issue
+        uses: actions-ecosystem/action-create-issue@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_number: ${{ github.event.inputs.issue_number }}
+          body: |
+            **Fix Date:** ${{ github.event.created_at }}
+            **Author:** ${{ github.actor }}
+            **Commits:**
+            ${{ github.event.pull_request.commits }}
+            **Docker Image:**
+            cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.RELEASE_VERSION }}_fix${{ env.FIX_VERSION }}
