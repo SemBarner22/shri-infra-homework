@@ -44,6 +44,7 @@ jobs:
     env:
       REGISTRY_ID: ${{ secrets.CONTAINER_REGISTRY_ID }}
       VERSION: ${{ github.run_number }}
+      TOKEN: ${{ secrets.YC_OAUTH }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -55,15 +56,15 @@ jobs:
         run: |
           docker build -t cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }} .
           docker tag cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }} cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }}_latest
+
+      - name: Authenticate in Docker
+        run: |
+          docker login --username oauth --password ${{ env.TOKEN }} cr.yandex
+
       - name: Push Docker image
         run: |
           docker push cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }}
           docker push cr.yandex/${{ env.REGISTRY_ID }}/app:${{ env.VERSION }}_latest
-
-      - name: Push docker image
-        run: |
-          docker push cr.yandex/${{ secrets.YANDEX_REGISTRY_ID }}/app:${{ github.run_number }}
-          docker push cr.yandex/${{ secrets.YANDEX_REGISTRY_ID }}/app:${{ github.run_number }}_latest
 
       - name: Create release tag
         run: git tag -a v${{ env.VERSION }} -m "Release ${{ env.VERSION }}" && git push origin v${{ env.VERSION }}
